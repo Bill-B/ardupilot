@@ -60,11 +60,8 @@ JSBSim::JSBSim(const char *frame_str) :
     if (model_name != nullptr) {
         jsbsim_model = model_name + 1;
     }
-    control_port = 5505 + instance*10;
-    fdm_port = 5504 + instance*10;
 
-    printf("JSBSim backend started: control_port=%u fdm_port=%u\n",
-           control_port, fdm_port);
+
 }
 
 /*
@@ -76,8 +73,11 @@ bool JSBSim::create_templates(void)
         return true;
     }
 
-    asprintf(&jsbsim_script, "%s/jsbsim_start_%u.xml", autotest_dir, instance);
-    asprintf(&jsbsim_fgout,  "%s/jsbsim_fgout_%u.xml", autotest_dir, instance);
+    control_port = 5505 + instance*10;
+    fdm_port = 5504 + instance*10;
+	
+    asprintf(&jsbsim_script, "jsbsim_start_%u.xml", instance);
+    asprintf(&jsbsim_fgout,  "jsbsim_fgout_%u.xml", instance);
 
     printf("JSBSim_script: '%s'\n", jsbsim_script);
     printf("JSBSim_fgout: '%s'\n", jsbsim_fgout);
@@ -133,8 +133,7 @@ bool JSBSim::create_templates(void)
         AP_HAL::panic("Unable to create jsbsim fgout script %s", jsbsim_fgout);
     }
     fprintf(f, "<?xml version=\"1.0\"?>\n"
-            "<output name=\"127.0.0.1\" type=\"FLIGHTGEAR\" port=\"%u\" protocol=\"UDP\" rate=\"%f\">\n"
-            "  <time type=\"simulation\" resolution=\"1e-6\"/>\n"
+            "<output name=\"127.0.0.1\" type=\"FLIGHTGEAR\" port=\"%u\" protocol=\"udp\" rate=\"%f\">\n"           
             "</output>",
             fdm_port, rate_hz);
     fclose(f);
@@ -142,7 +141,6 @@ bool JSBSim::create_templates(void)
     char *jsbsim_reset;
     asprintf(&jsbsim_reset, "%s/aircraft/%s/reset.xml", autotest_dir, jsbsim_model);
 
-    printf("JSBSim_reset: '%s'\n", jsbsim_reset);
 
     f = fopen(jsbsim_reset, "w");
     if (f == nullptr) {
@@ -216,6 +214,7 @@ bool JSBSim::start_JSBSim(void)
 
         int ret = execlp("JSBSim",
                          "JSBSim",
+						 "--realtime",
                          "--suspend",
                          rate,
                          nice,
@@ -357,6 +356,14 @@ void JSBSim::send_servos(const struct sitl_input &input)
         rudder   = (ch2+ch1)/2.0f;
     }
     float wind_speed_fps = input.wind.speed / FEET_TO_METERS;
+	float wind_v_speed = get_local_updraft(location);
+    float wind_vspd_fps =  wind_v_speed/ FEET_TO_METERS;
+	
+
+	//int randrange = 100 - 0 + 1; //generate random number between 0 and 100
+	//int num = rand() % randrange + 0;
+	//float noise = (float(num - 50 ) / 100.0); 
+	
     asprintf(&buf,
              "set fcs/aileron-cmd-norm %f\n"
              "set fcs/elevator-cmd-norm %f\n"
@@ -366,12 +373,14 @@ void JSBSim::send_servos(const struct sitl_input &input)
              "set atmosphere/wind-mag-fps %f\n"
              "set atmosphere/turbulence/milspec/windspeed_at_20ft_AGL-fps %f\n"
              "set atmosphere/turbulence/milspec/severity %f\n"
+			 "set atmosphere/wind-down-fps %f\n"
              "iterate 1\n",
              aileron, elevator, rudder, throttle,
              radians(input.wind.direction),
-             wind_speed_fps,
+             wind_speed_fps , 
              wind_speed_fps/3,
-             input.wind.turbulence);
+             input.wind.turbulence,
+             -wind_vspd_fps );
     ssize_t buflen = strlen(buf);
     ssize_t sent = sock_control.send(buf, buflen);
     free(buf);
@@ -416,13 +425,11 @@ void JSBSim::recv_fdm(const struct sitl_input &input)
     FGNetFDM fdm;
     check_stdout();
 
-    do {
-        while (sock_fgfdm.recv(&fdm, sizeof(fdm), 100) != sizeof(fdm)) {
-            send_servos(input);
-            check_stdout();
-        }
-        fdm.ByteSwap();
-    } while (fdm.cur_time == time_now_us);
+    while (sock_fgfdm.recv(&fdm, sizeof(fdm), 100) != sizeof(fdm)) {
+        send_servos(input);
+        check_stdout();
+    }
+    fdm.ByteSwap();
 
     accel_body = Vector3f(fdm.A_X_pilot, fdm.A_Y_pilot, fdm.A_Z_pilot) * FEET_TO_METERS;
 
@@ -437,7 +444,7 @@ void JSBSim::recv_fdm(const struct sitl_input &input)
     location.lng = degrees(fdm.longitude) * 1.0e7;
     location.alt = fdm.agl*100 + home.alt;
     dcm.from_euler(fdm.phi, fdm.theta, fdm.psi);
-    airspeed = fdm.vcas * KNOTS_TO_METERS_PER_SECOND;
+    airspeed = fdm.vcas * FEET_TO_METERS;
     airspeed_pitot = airspeed;
 
     // update magnetic field
@@ -446,7 +453,7 @@ void JSBSim::recv_fdm(const struct sitl_input &input)
     rpm1 = fdm.rpm[0];
     rpm2 = fdm.rpm[1];
     
-    time_now_us = fdm.cur_time;
+	time_now_us += 1e6/rate_hz;
 }
 
 void JSBSim::drain_control_socket()
@@ -456,6 +463,14 @@ void JSBSim::drain_control_socket()
     ssize_t received;
     do {
         received = sock_control.recv(buf, buflen, 0);
+		if (received < 0) {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                fprintf(stderr, "error recv on control socket: %s",
+                        strerror(errno));
+            }
+        } else {
+            // fprintf(stderr, "received from control socket: %s\n", buf);
+        }
     } while (received > 0);
 }
 /*
@@ -478,6 +493,43 @@ void JSBSim::update(const struct sitl_input &input)
     adjust_frame_time(rate_hz);
     sync_frame_time();
     drain_control_socket();
+}
+
+float JSBSim::get_local_updraft(Location currentloc)
+{
+    #define NTHERMALS 2
+	//int randrange = 5 - 2 + 1; //generate random number between 2 and 5
+	//int num = rand() % randrange + 2;
+	
+    //float thermals_w[] = {float(num),-1*float(num)};
+	
+	float thermals_w[] = {10,-10};
+    float thermals_r[] = {200.0,100.0};
+    float thermals_x[] = {0.0,300.0};
+    float thermals_y[] = {0.0,0.0};
+
+	
+
+
+
+    Location homeloc;
+    //homeloc.lat = -353629380;
+    //homeloc.lng = 1491650850;
+	homeloc.lat = (43.83882186) * 1.0e7;
+	homeloc.lng = (-80.43992042) * 1.0e7;
+    Vector2f acRel = homeloc.get_distance_NE(currentloc);
+
+    int iThermal;
+    float w = 0.0f;
+    float r;
+    for (iThermal=0;iThermal<NTHERMALS;iThermal++) {
+        Vector2f thermalRel(thermals_x[iThermal],thermals_y[iThermal]);
+        Vector2f relVec = acRel - thermalRel;
+        r = relVec.length();
+        w += thermals_w[iThermal]*exp(-r/thermals_r[iThermal]);
+    }
+
+    return w;
 }
 
 } // namespace SITL

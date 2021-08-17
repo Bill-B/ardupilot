@@ -10,13 +10,13 @@ dynamics model, and external 3D model.
 <PropertyList>
  <sim>
 
-  <description>Rascal 110 (R/C)</description>
+  <description>CREATeV</description>
   <author>Lee Elliot (3D) Dave Culp (JSBsim dynamics) and Curt Olson</author>
   <aircraft-version>0.1</aircraft-version>
   <model-hz>400</model-hz>
 
   <startup>
-    <splash-texture>Aircraft/Rascal/Rascal110-splash.rgb</splash-texture>
+    <splash-texture>Aircraft/Rascal/splash.png</splash-texture>
   </startup>
 
   <flight-model>jsb</flight-model>
@@ -44,26 +44,68 @@ dynamics model, and external 3D model.
    <path archive="y">Aircraft/Rascal/Models/Rascal110.xml</path>
   </model>
 
-  <view>
-   <internal archive="y">true</internal>
+  <!--<view>
+   <name>Cockpit View</name>
+   <type>lookfrom</type>
+   <internal type="bool">true</internal>
    <config>
-     <x-offset-m archive="y">0.0</x-offset-m>
-     <y-offset-m archive="y">-0.15</y-offset-m>
-     <z-offset-m archive="y">0.9</z-offset-m>
-     <pitch-offset-deg>0</pitch-offset-deg>
+     <from-model type="bool">true</from-model>
+     <from-model-idx type="int">0</from-model-idx>
+	 <default-field-of-view-deg type="double">94.0</default-field-of-view-deg>
+     <x-offset-m type="double">-0.2</x-offset-m> 
+     <y-offset-m type="double">0.22</y-offset-m> 
+     <z-offset-m type="double">1.45s</z-offset-m> 	 
    </config>
-  </view>
+ </view>-->
+ 
+ <view>
+   <name>Cockpit View</name>
+   <type>lookfrom</type>
+   <internal type="bool">true</internal>
+   <config>
+     <from-model type="bool">true</from-model>
+     <from-model-idx type="int">0</from-model-idx>
+	 <default-field-of-view-deg type="double">80.0</default-field-of-view-deg>
+     <x-offset-m type="double">-0.2</x-offset-m> <!-- actually y-->
+     <y-offset-m type="double">1.00</y-offset-m> <!--actually z-->
+     <z-offset-m type="double">4.00</z-offset-m> <!-- acutally x-->	 
+   </config>
+ </view>
 
+  <somepath>
+	<ground-observer-lon-deg>-79.3210664</ground-observer-lon-deg>
+	<ground-observer-lat-deg>43.9533747</ground-observer-lat-deg>
+	<ground-observer-alt-ft>838</ground-observer-alt-ft>
+  </somepath>
+
+  <view>
+    <name>Pilot View</name>
+    <type>lookat</type>
+    <config>
+      <eye-lat-deg-path>sim/somepath/ground-observer-lat-deg</eye-lat-deg-path>
+      <eye-lon-deg-path>sim/somepath/ground-observer-lon-deg</eye-lon-deg-path>
+      <eye-alt-ft-path>sim/somepath/ground-observer-alt-ft</eye-alt-ft-path>
+	  <eye-roll-deg-path>/sim/tower/roll-deg</eye-roll-deg-path>
+	  <eye-pitch-deg-path>/sim/tower/pitch-deg</eye-pitch-deg-path>
+	  <eye-heading-deg-path>/sim/tower/heading-deg</eye-heading-deg-path>
+	   
+      <at-model type="bool">true</at-model>
+      <at-model-idx type="int">0</at-model-idx>
+	  
+	  <ground-level-nearplane-m type="double">10.0f</ground-level-nearplane-m>
+    </config>
+  </view>
+  
   <submodels>
     <serviceable type="bool">1</serviceable>
     <path>Aircraft/Rascal/Rascal-submodels.xml</path>
   </submodels>
 
-  <view n="1">
+  <!--<view n="1">
    <config>
     <target-z-offset-m archive="y" type="double">0.5</target-z-offset-m>
    </config>
-  </view>
+  </view>-->
 
   <view n="2">
    <config>
@@ -104,13 +146,13 @@ dynamics model, and external 3D model.
   </multiplay>
 
   <help>
-    <title>Rascal 110 (Sig Mfg)</title>
-    <line>Cruise speed: 60 kts</line>
-    <line>Never-exceed (Vne): 85 kts</line>
-    <line>Best Glide (Vglide): 20 kts</line>
-    <line>Maneuvering (Va): 50 kts</line>
-    <line>Approach speed: 20-25 kts</line>
-    <line>Stall speed (Vs): 15 kts</line>
+    <title>CREATeV FTV-1</title>
+    <line>Cruise speed: 9 m/s</line>
+    <line>Never-exceed (Vne): 19 m/s</line>
+    <line>Best Glide (Vglide): 9 m/s</line>
+    <line>Maneuvering (Va): 11 m/s</line>
+    <line>Approach speed: 9-10 m/s</line>
+    <line>Stall speed (Vs): 8 m/s</line>
   </help>
 
  </sim>
@@ -152,7 +194,7 @@ dynamics model, and external 3D model.
 
  <controls>
   <flight>
-   <aileron-trim>-0.01</aileron-trim>   <!-- fixed -->
+   <aileron-trim>-0.00</aileron-trim>   <!-- fixed -->
    <elevator-trim>0.00</elevator-trim> <!-- controllable -->
    <rudder-trim>0.00</rudder-trim>     <!-- fixed -->
   </flight>

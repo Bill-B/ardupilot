@@ -1,0 +1,2 @@
+Tools/scripts/dumpstack: line 5: $'\r': command not found
+Tools/scripts/dumpstack: line 15: warning: here-document at line 8 delimited by end-of-file (wanted `EOF')

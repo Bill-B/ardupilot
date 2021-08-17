@@ -78,6 +78,7 @@ private:
     bool expect(const char *str);
 
     void drain_control_socket();
+	float get_local_updraft(Location currentloc);
 };
 
 /*
